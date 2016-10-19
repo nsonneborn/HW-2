@@ -1,6 +1,6 @@
 ---
 title: "MATH 216 Homework 2"
-author: "WRITE YOUR NAME HERE"
+author: "Nina Sonneborn"
 output:
   html_document:
     toc: true
@@ -13,6 +13,7 @@ output:
 library(ggplot2)
 library(dplyr)
 library(readr) 
+library(knitr)
 ```
 
 
@@ -31,7 +32,7 @@ Please indicate
 
 * Who you collaborated with:
 * Roughly how much time you spent on this HW so far:
-* The URL of the RPubs published URL [here](https://www.nhl.com/).
+* The URL of the RPubs published URL [here](http://rpubs.com/nsonneborn/hw2).
 * What gave you the most trouble:
 * Any comments you have:
 
@@ -49,10 +50,133 @@ specifically on the relationship between gender and
 all keeping in mind in HW-3, you will be fitting a logistic regression to
 predict a user's gender based on these variables.
 
+## Income
+The following will analyze the relationship between gender and income.
 ```{r, echo=TRUE, message=TRUE, warning=TRUE, fig.width=8, fig.height=4.5}
+
+profiles <- profiles %>%
+  mutate(is_female = ifelse(sex=="f", 1, 0))
+
+
+income_hist<- profiles %>% 
+  filter(between(income, 20000, 200000)) %>%
+  ggplot(aes(x = income)) +
+  geom_histogram(bins = 30) +
+  facet_wrap(~sex) +
+  ggtitle("Self reported income by gender in SF OkCupid users")
+income_hist
+
+reported_incomes_box <- profiles %>%
+  filter(between(income, 0, 200000)) %>%
+  ggplot(aes(x=sex, y=income)) +
+  geom_boxplot() +
+  ggtitle("Reported incomes between $0 and $200,000")
+reported_incomes_box
+
+profiles %>% filter(income!= -1) %>% summarise(mean(income))
+no_reported_income <-  profiles %>% 
+  filter(income == -1) %>%
+  summarise(mean(sex == 'f'), mean(sex == 'm'))
+
+no_reported_income %>% knitr::kable(digits = 4, 
+                                    caption = "Gender breakdown for missing income values",
+                                    col.names = c("proportion female", "proportion male"))
+not_reporting_income <- profiles %>%
+  group_by(sex) %>%
+  summarise("Percent not reporting income" = mean(income == -1)*100)
+not_reporting_income %>% knitr::kable(digits = 2)
+```
+
+80.8% of users did note report an income. 87.09% of women didn't report and 76.58% of men didn't report. This is unsuprising, but still definitely makes us question any predictions we make about gender based on income or vice-versa. These missing values are not insignificant, in fact we may be able to predict gender based on whether or not they reported.
+The box plot ignores most of the high outliers. These medians are pretty high, but that's sort of expected with self reporting.
+
+
+## Job
+The following will analyze the relationship between gender and job.
+```{r, echo=TRUE, message=TRUE, warning=TRUE, fig.width=8, fig.height=4.5}
+n_distinct(profiles$job)
+
+jobs_hist<- profiles %>% 
+  filter(!is.na(job)) %>%
+  ggplot(aes(x = job, fill= sex)) +
+  geom_bar(stat="count", position = "dodge") +
+  ggtitle("Jobs of SF OkCupid users") +
+  theme(axis.text.x=element_text(angle=90))
+jobs_hist
+
+profiles %>% group_by(job) %>% 
+  summarise(percent_female = mean(is_female)) %>% 
+  knitr::kable(digits = 4)
+
+no_reported_job <-  profiles %>% 
+  filter(job == "") %>%
+  summarise("females not reporting job" = mean(sex == 'f'),
+            "males not reporting job" = mean(sex == 'm')) %>%
+  knitr::kable(digits=4)
+no_reported_job
+
+not_reporting_job <- profiles %>%
+  group_by(sex) %>%
+  summarise("Percent not reporting job" = mean(job == "")*100) %>%
+  knitr::kable(digits = 2)
+not_reporting_job
+
+sum(profiles$job == "")/sum(!is.na(profiles$job)) #overall not reporting job
+
+job_other <-  profiles %>% 
+  filter(job == "other") %>%
+  summarise("females reporting job 'other'" = mean(sex == 'f'),
+            "males reporting job 'other'" = mean(sex == 'm')) %>%
+  knitr::kable(digits=4)
+job_other
+
+job_reporting_other <- profiles %>%
+  group_by(sex) %>%
+  summarise("Percent reporting job as other" = mean(job == "other")*100) %>%
+  knitr::kable(digits = 2)
+job_reporting_other
+
+sum(profiles$job == "other")/sum(!is.na(profiles$job)) #overall not reporting job
+
+computer_dudes <- profiles %>%
+  group_by(sex) %>% 
+  summarise("percent in computers" = mean(job == "computer / hardware / software"))
+
+computer_dudes %>% knitr::kable(digits=4)
+
+tech_dudes <- profiles %>%
+  group_by(sex) %>% 
+  summarise("percent in science/tech/engineering" = mean(job == "science / tech / engineering"))
+
+tech_dudes %>% knitr::kable(digits=4)
+```
+
+Overall, 13.7% of users did not report a job. 15.16% of females and 12.68% of males didn't report. 12.6% of users fall under the category other; 15% of females and 11% of males. Also, 11.3% of males are in computers/hardware/software, while only 2.6% of women are. Similar numbers for the STEM category. SF things.. But this mean that 21% of men are in one of these 2 categories but only 6% of women are.
+
+
+## Orientation
+```{r, echo=TRUE, message=TRUE, warning=TRUE, fig.width=8, fig.height=4.5}
+n_distinct(profiles$orientation)
+
+sexual_orientation_bar <- profiles %>%
+  ggplot(aes(x = sex, fill = orientation)) +
+  geom_bar(position = "dodge") +
+  # facet_wrap(~sex) +
+  ggtitle("Sexual Orientation in SF OKCupid Users")
+sexual_orientation_bar
+
+
+orientation <-  profiles %>% 
+  group_by(orientation) %>%
+  summarise("female" = mean(sex == 'f'),
+            "male" = mean(sex == 'm')) %>%
+  knitr::kable(digits=4)
+orientation
+
 
 ```
 
+Although only 40% of users are female, 72% of users who are bisexual are women. 
 
 
 ## Question 2:
