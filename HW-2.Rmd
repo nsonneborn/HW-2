@@ -57,21 +57,32 @@ The following will analyze the relationship between gender and income.
 profiles <- profiles %>%
   mutate(is_female = ifelse(sex=="f", 1, 0))
 
+profiles <- profiles %>%
+  mutate(income_bracket = ifelse(income == -1, "unreported", 
+                                 ifelse(income <= 50000, "under_50k",
+                                        ifelse(income <= 150000, "50k_to_150k",
+                                               ifelse(income <= 10000000, 
+                                                      "150k_to_10mil", "over_10mil")))))
 
-income_hist<- profiles %>% 
-  filter(between(income, 20000, 200000)) %>%
-  ggplot(aes(x = income)) +
-  geom_histogram(bins = 30) +
-  facet_wrap(~sex) +
-  ggtitle("Self reported income by gender in SF OkCupid users")
-income_hist
+compare_incomes <- profiles %>%
+  group_by(income_bracket, sex) %>%
+  summarise(count=n()) %>%
+  group_by(income_bracket) %>%
+  mutate(prop=count/sum(count))
 
-reported_incomes_box <- profiles %>%
-  filter(between(income, 0, 200000)) %>%
-  ggplot(aes(x=sex, y=income)) +
-  geom_boxplot() +
-  ggtitle("Reported incomes between $0 and $200,000")
-reported_incomes_box
+compare_incomes %>% knitr::kable(digits = 4)
+
+ggplot(compare_incomes, aes(x = income_bracket, y = prop, fill = sex)) +
+  geom_bar(stat="identity", position = "dodge") +
+  ggtitle("Self reported incomes of SF OkCupid users")
+
+# income_hist<- profiles %>% 
+#   filter(income != -1) %>%
+#   ggplot(aes(x = income)) +
+#   geom_histogram(bins = 30) +
+#   facet_wrap(~sex) +
+#   ggtitle("Self reported income by gender in SF OkCupid users")
+# income_hist
 
 profiles %>% filter(income!= -1) %>% summarise(mean(income))
 no_reported_income <-  profiles %>% 
@@ -81,62 +92,60 @@ no_reported_income <-  profiles %>%
 no_reported_income %>% knitr::kable(digits = 4, 
                                     caption = "Gender breakdown for missing income values",
                                     col.names = c("proportion female", "proportion male"))
+mean(profiles$income == -1)
 not_reporting_income <- profiles %>%
   group_by(sex) %>%
-  summarise("Percent not reporting income" = mean(income == -1)*100)
+  summarise("Proportion not reporting income" = mean(income == -1))
 not_reporting_income %>% knitr::kable(digits = 2)
 ```
 
-80.8% of users did note report an income. 87.09% of women didn't report and 76.58% of men didn't report. This is unsuprising, but still definitely makes us question any predictions we make about gender based on income or vice-versa. These missing values are not insignificant, in fact we may be able to predict gender based on whether or not they reported.
-The box plot ignores most of the high outliers. These medians are pretty high, but that's sort of expected with self reporting.
+80.8% of users did note report an income. 87.09% of women didn't report and 76.58% of men didn't report. The "unreported" category is the only category in which females make up more that 40% of the category, even though 40% of users in the overall data are female.
 
 
 ## Job
 The following will analyze the relationship between gender and job.
 ```{r, echo=TRUE, message=TRUE, warning=TRUE, fig.width=8, fig.height=4.5}
 n_distinct(profiles$job)
+ggplot(profiles, aes(x=job)) +geom_bar(stat="count")
+test <- profiles %>% 
+  group_by(job) %>%
+  summarise(count = n()) %>%
+  ungroup()%>%
+  mutate(job_new =ifelse(count < 600, "misc", 
+                         ifelse(job == "", "unreported", job)))
+
+profiles <- left_join( profiles, test, by = "job") %>% select(-count)
 
 jobs_hist<- profiles %>% 
-  filter(!is.na(job)) %>%
-  ggplot(aes(x = job, fill= sex)) +
-  geom_bar(stat="count", position = "dodge") +
+  group_by(job_new, sex) %>% 
+  summarise(count=n()) %>% 
+  group_by(job_new) %>% 
+  mutate(prop=count/sum(count))
+
+ggplot(jobs_hist, aes(x = job_new, y=prop, fill= sex)) +
+  geom_bar(stat="identity", position = "dodge") +
   ggtitle("Jobs of SF OkCupid users") +
   theme(axis.text.x=element_text(angle=90))
-jobs_hist
 
-profiles %>% group_by(job) %>% 
+profiles %>% group_by(job_new) %>% 
   summarise(percent_female = mean(is_female)) %>% 
   knitr::kable(digits = 4)
 
-no_reported_job <-  profiles %>% 
-  filter(job == "") %>%
-  summarise("females not reporting job" = mean(sex == 'f'),
-            "males not reporting job" = mean(sex == 'm')) %>%
-  knitr::kable(digits=4)
-no_reported_job
-
 not_reporting_job <- profiles %>%
   group_by(sex) %>%
-  summarise("Percent not reporting job" = mean(job == "")*100) %>%
+  summarise("Proportion not reporting job" = mean(job == "")) %>%
   knitr::kable(digits = 2)
 not_reporting_job
 
 sum(profiles$job == "")/sum(!is.na(profiles$job)) #overall not reporting job
 
-job_other <-  profiles %>% 
-  filter(job == "other") %>%
-  summarise("females reporting job 'other'" = mean(sex == 'f'),
-            "males reporting job 'other'" = mean(sex == 'm')) %>%
-  knitr::kable(digits=4)
-job_other
-
 job_reporting_other <- profiles %>%
   group_by(sex) %>%
-  summarise("Percent reporting job as other" = mean(job == "other")*100) %>%
+  summarise("Percent reporting job as other" = mean(job == "other")) %>%
   knitr::kable(digits = 2)
 job_reporting_other
 
-sum(profiles$job == "other")/sum(!is.na(profiles$job)) #overall not reporting job
+sum(profiles$job == "other")/sum(!is.na(profiles$job))
 
 computer_dudes <- profiles %>%
   group_by(sex) %>% 
@@ -146,12 +155,16 @@ computer_dudes %>% knitr::kable(digits=4)
 
 tech_dudes <- profiles %>%
   group_by(sex) %>% 
-  summarise("percent in science/tech/engineering" = mean(job == "science / tech / engineering"))
+  summarise("percent in science/tech/engineering" = 
+              mean(job == "science / tech / engineering"))
 
 tech_dudes %>% knitr::kable(digits=4)
 ```
 
-Overall, 13.7% of users did not report a job. 15.16% of females and 12.68% of males didn't report. 12.6% of users fall under the category other; 15% of females and 11% of males. Also, 11.3% of males are in computers/hardware/software, while only 2.6% of women are. Similar numbers for the STEM category. SF things.. But this mean that 21% of men are in one of these 2 categories but only 6% of women are.
+Overall, 13.7% of users did not report a job. 15.16% of females and 12.68% of males didn't report. 12.6% of users fall under the category other; 15% of females and 11% of males. Also, 11.3% of males are in computers/hardware/software, while only 2.6% of women are. Similar numbers for the STEM category. This mean that 21% of men are in one of these 2 categories but only 6% of women are.
+
+Also, I lumped all jobs that constituted less than 1% of users (count < 600) into one category "misc."
+
 
 
 ## Orientation
@@ -159,12 +172,14 @@ Overall, 13.7% of users did not report a job. 15.16% of females and 12.68% of ma
 n_distinct(profiles$orientation)
 
 sexual_orientation_bar <- profiles %>%
-  ggplot(aes(x = sex, fill = orientation)) +
-  geom_bar(position = "dodge") +
-  # facet_wrap(~sex) +
-  ggtitle("Sexual Orientation in SF OKCupid Users")
-sexual_orientation_bar
+  group_by(orientation, sex) %>%
+  summarise(count = n()) %>%
+  group_by(orientation) %>%
+  mutate(prop = count/sum(count))
 
+ggplot(sexual_orientation_bar, aes(x = orientation, y = prop, fill = sex)) +
+  geom_bar(position = "dodge", stat="identity") +
+  ggtitle("Sexual Orientation in SF OKCupid Users")
 
 orientation <-  profiles %>% 
   group_by(orientation) %>%

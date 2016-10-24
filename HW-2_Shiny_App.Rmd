@@ -33,7 +33,7 @@ renderPlot({
   # Generate Plots
   genre <- movies %>% filter(Comedy == input$genre)
   ggplot(data=genre, aes(x=budget, y=rating)) + 
-    geom_point()
+    geom_point() +scale_x_log10()
 })
 
 ```
